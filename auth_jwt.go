@@ -528,7 +528,7 @@ func (mw *GinJWTMiddleware) jwtFromCookie(c *gin.Context, key string) (string, e
 func (mw *GinJWTMiddleware) parseTokenFromMultipleMethods(c *gin.Context) (*jwt.Token, error) {
 	var token string
 	var err error
-
+	fmt.Println("parse token")
 	methods := strings.Split(mw.TokenLookup, ",")
 
 	for _, method := range methods {
