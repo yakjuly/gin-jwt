@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/dgrijalva/jwt-go.v3"
+	"fmt"
 )
 
 // MapClaims type that uses the map[string]interface{} for JSON decoding
@@ -524,18 +525,25 @@ func (mw *GinJWTMiddleware) jwtFromCookie(c *gin.Context, key string) (string, e
 	return cookie, nil
 }
 
-func (mw *GinJWTMiddleware) parseToken(c *gin.Context) (*jwt.Token, error) {
+func (mw *GinJWTMiddleware) parseTokenFromMultipleMethods(c *gin.Context) (*jwt.Token, error) {
 	var token string
 	var err error
 
-	parts := strings.Split(mw.TokenLookup, ":")
-	switch parts[0] {
-	case "header":
-		token, err = mw.jwtFromHeader(c, parts[1])
-	case "query":
-		token, err = mw.jwtFromQuery(c, parts[1])
-	case "cookie":
-		token, err = mw.jwtFromCookie(c, parts[1])
+	methods := strings.Split(mw.TokenLookup, ",")
+
+	for _, method := range methods {
+		parts := strings.Split(method, ":")
+		switch parts[0] {
+		case "header":
+			token, err = mw.jwtFromHeader(c, parts[1])
+		case "query":
+			token, err = mw.jwtFromQuery(c, parts[1])
+		case "cookie":
+			token, err = mw.jwtFromCookie(c, parts[1])
+		}
+		if err == nil {
+			break
+		}
 	}
 
 	if err != nil {
@@ -544,6 +552,9 @@ func (mw *GinJWTMiddleware) parseToken(c *gin.Context) (*jwt.Token, error) {
 
 	return jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 		if jwt.GetSigningMethod(mw.SigningAlgorithm) != t.Method {
+			fmt.Println("t.Method", t.Method)
+			fmt.Println("t.SigningAlgorithm", mw.SigningAlgorithm)
+			fmt.Println("jwt.GetSigningMethod", jwt.GetSigningMethod(mw.SigningAlgorithm))
 			return nil, ErrInvalidSigningAlgorithm
 		}
 		if mw.usingPublicKeyAlgo() {
@@ -555,6 +566,42 @@ func (mw *GinJWTMiddleware) parseToken(c *gin.Context) (*jwt.Token, error) {
 
 		return mw.Key, nil
 	})
+}
+
+func (mw *GinJWTMiddleware) parseToken(c *gin.Context) (*jwt.Token, error) {
+	// use custom method
+	return mw.parseTokenFromMultipleMethods(c)
+	//
+	//var token string
+	//var err error
+	//
+	//parts := strings.Split(mw.TokenLookup, ":")
+	//switch parts[0] {
+	//case "header":
+	//	token, err = mw.jwtFromHeader(c, parts[1])
+	//case "query":
+	//	token, err = mw.jwtFromQuery(c, parts[1])
+	//case "cookie":
+	//	token, err = mw.jwtFromCookie(c, parts[1])
+	//}
+	//
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//return jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
+	//	if jwt.GetSigningMethod(mw.SigningAlgorithm) != t.Method {
+	//		return nil, ErrInvalidSigningAlgorithm
+	//	}
+	//	if mw.usingPublicKeyAlgo() {
+	//		return mw.pubKey, nil
+	//	}
+	//
+	//	// save token string if vaild
+	//	c.Set("JWT_TOKEN", token)
+	//
+	//	return mw.Key, nil
+	//})
 }
 
 func (mw *GinJWTMiddleware) unauthorized(c *gin.Context, code int, message string) {
